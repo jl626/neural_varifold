@@ -20,5 +20,7 @@ dependencies:
   - https://data.pyg.org/whl/torch-1.8.0%2Bcu111/torch_spline_conv-1.2.1-cp38-cp38-win_amd64.whl
   - https://whls.blob.core.windows.net/unstable/cuda111/jaxlib-0.1.75+cuda111-cp38-none-win_amd64.whl
   - jax
-
-  
+  - tensorflow
+  - tensorflow-datasets
+  - matplotlib
+  - neural-tangents

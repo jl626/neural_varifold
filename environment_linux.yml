@@ -19,4 +19,6 @@ dependencies:
   - https://data.pyg.org/whl/torch-1.8.0%2Bcu111/torch_cluster-1.5.9-cp38-cp38-linux_x86_64.whl
   - https://data.pyg.org/whl/torch-1.8.0%2Bcu111/torch_spline_conv-1.2.1-cp38-cp38-linux_x86_64.whl
   - jax[cuda]
-  
+  - tensorflow
+  - tensorflow-dataset
+  - matplotlib
