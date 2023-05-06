@@ -19,7 +19,7 @@
 import jax.numpy as np
 import neural_tangents as nt
 from neural_tangents import stax
-from neural_tangents.utils.kernel import Kernel
+from neural_tangents._src.utils.kernel import Kernel
 import numpy as onp
 from jax import random
 from jax.config import config ; config.update('jax_enable_x64', True)
