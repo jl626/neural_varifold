@@ -25,7 +25,7 @@ experiments = "cup"
 
 #names = 'binet'
 
-names = 'pointnet_ntk2'
+names = 'pointnet_ntk1'
 
 
 if names == 'binet':
@@ -63,8 +63,10 @@ verts2 = verts2 / scale2
 
 
 res = Meshes(verts=[verts1], faces=[faces1.verts_idx])
-gt_mesh = Meshes(verts=[verts2], faces=[faces2.verts_idx])
-
+if experiments == 'dolphin':
+    gt_mesh = Meshes(verts=[verts2], faces=[faces2.verts_idx])
+else:
+    gt_mesh = Meshes(verts=[verts2], faces=[faces2])
 
 # EMD loss function
 emd = emdModule()
