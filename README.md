@@ -21,3 +21,4 @@ In order to use the library, one can activate conda virtual environment as follo
 conda activate neural-varifold
 ```
 
+## TO DO
