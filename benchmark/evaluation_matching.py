@@ -24,10 +24,10 @@ torch.backends.cudnn.deterministic =True
 experiments = "cup"
 #experiments = "dolphin"
 
-names = 'chamfer'
+#names = 'chamfer'
 #names = 'binet'
 #names = 'emd'
-#names = 'pointnet_ntk1'
+names = 'pointnet_ntk1'
 #names = 'pointnet_ntk2'
 
 types = '_low'
@@ -58,17 +58,6 @@ elif experiments == "cup":
     verts2 = torch.FloatTensor(verts2)
     faces2 = torch.LongTensor(faces2)
 
-# no need scale - GT/matching must have the same scale!
-#center1 = verts1.mean(0)
-#center2 = verts2.mean(0)
-#verts1 = verts1 - center1
-#verts2 = verts2 - center2
-#scale1 = max(verts1.abs().max(0)[0])
-#scale2 = max(verts2.abs().max(0)[0])
-#verts1 = verts1 / scale1
-#verts2 = verts2 / scale2
-
-
 res = Meshes(verts=[verts1], faces=[faces1.verts_idx])
 if experiments == 'dolphin' or experiments =='hippo':
     gt_mesh = Meshes(verts=[verts2], faces=[faces2.verts_idx])
@@ -78,28 +67,27 @@ else:
 # EMD loss function
 emd = emdModule()
 # NTK1
-ntk1 = tangent_kernel(5,1.,0.05,3,mode='NTK1')
+ntk1 = tangent_kernel(5,1.,0.05,3,mode='NTK1') # 5 Layer 
 # NTK2
-ntk2 = tangent_kernel(9,1.,0.05,3,mode='NTK2')
+ntk2 = tangent_kernel(9,1.,0.05,3,mode='NTK2') # 9 Layer 
 # Binet
-binet = tangent_kernel(1,1.,0.05,3,mode='binet')
+binet = tangent_kernel(1,1.,0.05,3,mode='binet') # Gaussian RBF - Postion & Cauchy-Binet - normal (Grassmannian)
 
 
 
-# sample 2048 points to compute EMD (EMD implementation only accept ones divide by 1024)
+# sample 4096 points to compute EMD (EMD implementation only accept ones divide by 1024)
 sample_gt,sample_gt_nor = sample_points_from_meshes(gt_mesh, 4096, return_normals=True)
 print(sample_gt)
 sample_res,sample_res_nor = sample_points_from_meshes(res, 4096, return_normals=True)
 print('names: %s'%names)
 print('Results for Experiment: %s'%experiments)
 
+emd_val, _ = emd(sample_res*10,sample_gt*10, 1e-3*2, 10000)
+loss_emd = emd_val.sum()
+
 if experiments =='dolphin':
     sample_gt  = sample_gt*10
     sample_res = sample_res*10
-
-
-emd_val, _ = emd(sample_res,sample_gt, 1e-3*2, 10000)
-loss_emd = emd_val.sum()
 
 
 def CompCLNn(F, V):
