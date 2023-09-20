@@ -18,52 +18,59 @@ from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import chamfer_distance
 
 torch.manual_seed(0)
+torch.backends.cudnn.deterministic =True
 
-#experiments = "cup"
+#experiments = "hippo"
 experiments = "cup"
 #experiments = "dolphin"
 
+names = 'chamfer'
 #names = 'binet'
+#names = 'emd'
+#names = 'pointnet_ntk1'
+#names = 'pointnet_ntk2'
 
-names = 'pointnet_ntk1'
+types = '_low'
+#types = ''
 
 
 if names == 'binet':
-    verts1,faces1,_ = load_obj('../results/%s_%s.obj'%(names,experiments))
+    verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 elif names == "chamfer":
-    verts1,faces1,_ = load_obj('../results/%s_%s.obj'%(names,experiments))
+    verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 elif names == "emd":
-    verts1,faces1,_ = load_obj('../results/%s_%s.obj'%(names,experiments))
+    verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 elif names == "pointnet_ntk1":
-    verts1,faces1,_ = load_obj('../results/%s_%s.obj'%(names,experiments))
+    verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 elif names == "pointnet_ntk2":
-    verts1,faces1,_ = load_obj('../results/%s_%s.obj'%(names,experiments))
+    verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 
 
 
 if experiments == "hippo":
-    verts2,faces2,_ = load_obj('../results/hippo_target.obj')
+    verts2,faces2,_ = load_obj('../results/%s/hippo_target.obj'%experiments)
 elif experiments == "dolphin":
     verts2,faces2,_ = load_obj("../data/matching/dolphin.obj")
 elif experiments == "cup":
     [VT,FT,FunT] = input_output.loadData("../data/matching/cup3_broken.ply")
-    param_decimation = {'factor':13/16,'Vol_preser':1, 'Fun_Error_Metric': 1, 'Fun_weigth':0.00} #decimate by a factor of 16
+    param_decimation = {'factor':31/32,'Vol_preser':1, 'Fun_Error_Metric': 1, 'Fun_weigth':0.00} #decimate by a factor of 16
     [verts2,faces2]= input_output.decimate_mesh(VT,FT,param_decimation)
     verts2 = torch.FloatTensor(verts2)
     faces2 = torch.LongTensor(faces2)
 
-center1 = verts1.mean(0)
-center2 = verts2.mean(0)
-verts1 = verts1 - center1
-verts2 = verts2 - center2
-scale1 = max(verts1.abs().max(0)[0])
-scale2 = max(verts2.abs().max(0)[0])
-verts1 = verts1 / scale1
-verts2 = verts2 / scale2
+# no need scale - GT/matching must have the same scale!
+#center1 = verts1.mean(0)
+#center2 = verts2.mean(0)
+#verts1 = verts1 - center1
+#verts2 = verts2 - center2
+#scale1 = max(verts1.abs().max(0)[0])
+#scale2 = max(verts2.abs().max(0)[0])
+#verts1 = verts1 / scale1
+#verts2 = verts2 / scale2
 
 
 res = Meshes(verts=[verts1], faces=[faces1.verts_idx])
-if experiments == 'dolphin':
+if experiments == 'dolphin' or experiments =='hippo':
     gt_mesh = Meshes(verts=[verts2], faces=[faces2.verts_idx])
 else:
     gt_mesh = Meshes(verts=[verts2], faces=[faces2])
@@ -71,22 +78,27 @@ else:
 # EMD loss function
 emd = emdModule()
 # NTK1
-ntk1 = tangent_kernel(1,1.,0.05,3,mode='NTK1')
+ntk1 = tangent_kernel(5,1.,0.05,3,mode='NTK1')
 # NTK2
-ntk2 = tangent_kernel(1,1.,0.05,3,mode='NTK2')
+ntk2 = tangent_kernel(9,1.,0.05,3,mode='NTK2')
 # Binet
 binet = tangent_kernel(1,1.,0.05,3,mode='binet')
 
 
 
 # sample 2048 points to compute EMD (EMD implementation only accept ones divide by 1024)
-sample_gt,sample_gt_nor = sample_points_from_meshes(gt_mesh, 2048, return_normals=True)
-sample_res,sample_res_nor = sample_points_from_meshes(res, 2048, return_normals=True)
-
+sample_gt,sample_gt_nor = sample_points_from_meshes(gt_mesh, 4096, return_normals=True)
+print(sample_gt)
+sample_res,sample_res_nor = sample_points_from_meshes(res, 4096, return_normals=True)
+print('names: %s'%names)
 print('Results for Experiment: %s'%experiments)
 
+if experiments =='dolphin':
+    sample_gt  = sample_gt*10
+    sample_res = sample_res*10
 
-emd_val, _ = emd(sample_res,sample_gt, 1e-3, 3000)
+
+emd_val, _ = emd(sample_res,sample_gt, 1e-3*2, 10000)
 loss_emd = emd_val.sum()
 
 
@@ -125,13 +137,18 @@ v1 = res.verts_packed()
 f2 = gt_mesh.faces_packed()
 v2 = gt_mesh.verts_packed()
 
+if experiments =='dolphin':
+    v1 = v1*10
+    v2 = v2*10
+
+
 # results
 c1,l1,n1,_ = CompCLNn(f1,v1)
 # gt
 c2,l2,n2,_ = CompCLNn(f2,v2)
 
 
-loss_cd, _ = chamfer_distance(c1.unsqueeze(0),c2.unsqueeze(0))
+loss_cd, _ = chamfer_distance(sample_res,sample_gt)
 
 c1 = torch.cat([c1,n1],1)
 c2 = torch.cat([c2,n2],1)

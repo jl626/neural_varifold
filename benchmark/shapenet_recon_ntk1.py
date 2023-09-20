@@ -36,7 +36,7 @@ def run_shapenet_test(paths):
 
     # hyper parameters
     onp.random.seed(0)
-    n_train = 2048 # subsample 6144 out of 10000 points 
+    n_train = 2048 # subsample n out of 10000 points 
     idx = np.random.choice(10000,n_train,replace=False)
 
     # Load data 
@@ -109,7 +109,8 @@ def run_shapenet_test(paths):
     print(pos.dtype)
     #idx1,idx2 = torch_geometric.nn.knn(pos.cuda(),xgrid.cuda(),1,cosine=True)
     #pseudo = nor[idx2.cpu()]
-    pseudo = torch.FloatTensor([0,0,1]).repeat(len(xgrid),1)
+    #pseudo = torch.FloatTensor([0,0,1]).repeat(len(xgrid),1)
+    pseudo = torch.FloatTensor([np.sqrt(1/3),np.sqrt(1/3),np.sqrt(1/3)]).repeat(len(xgrid),1)
     print(xgrid.shape)
     print(pseudo.shape)
 
@@ -138,7 +139,7 @@ def run_shapenet_test(paths):
     # Bayesian and infinite-time gradient descent inference with infinite network.
     predict_fn = nt.predict.gradient_descent_mse_ensemble(kernel_fn, x_train,y_train, diag_reg=1e-6)
 
-    n_batch=1024
+    n_batch=n_train//2
     nngp = []
     ntk  = []
     print('inference kenrel')
@@ -174,7 +175,7 @@ def run_shapenet_test(paths):
     mesh.triangle_normals = o3d.utility.Vector3dVector(normals)
 
     names = paths.split('/')[-1][:-4]
-    o3d.io.write_triangle_mesh('../results/ntkz/%s_ntk.ply'%names, mesh)
+    o3d.io.write_triangle_mesh('../results/ntku_2048/%s_ntk.ply'%names, mesh)
 
 if __name__=="__main__":
     # 13 clases shapenet objects

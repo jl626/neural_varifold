@@ -13,8 +13,8 @@ from torch import nn
 from torch.autograd import Function
 import emd
 
-
-
+torch.manual_seed(0)
+torch.use_deterministic_algorithms(True)
 
 class emdFunction(Function):
     @staticmethod
@@ -125,16 +125,18 @@ if __name__=='__main__':
     data_path = '../data/processed/'
     
     # PointNet-NTK
-    #exp = 'ntk'
-    #recon_path = '../results/ntkz/'
+    exp = 'ntk'
+    recon_path = '../results/ntku_2048/'
+    #recon_path = '../results/ntkz_512/'
     # Neural-Spline
     #exp = 'spline'
-    #recon_path = '../../neural_spline_temp/results/shapenet/'
+    #recon_path = '../../neural_spline_temp/results/shapenet_512/'
     # SIREN
-    exp = 'siren'
-    recon_path = '../../siren/results/'
+    #exp = 'siren'
+    #recon_path = '../../siren/results/'
 
-    print('initiate evaluating method for %s'%exp)
+    print('initiate evaluating method EMD for %s'%exp)
+    print(recon_path)
     res = []
     for j,cl in enumerate(classes):
         tmp = torch.zeros(20)
@@ -142,8 +144,10 @@ if __name__=='__main__':
         for i in range(20):
             val = evaluate_results(data_path+'%s/%s%02d.obj'%(cl,cl,i),recon_path+'%s%02d_%s.ply'%(cl,i,exp))
             tmp[i] = val
-        res.append(torch.median(tmp))
+        res.append(torch.median(tmp).numpy())
+        #res.append(torch.mean(tmp).numpy())
         #break
+    print(np.sum(np.asarray(res)))
     print('accuracy airplane %.6f'%res[0])
     print('accuracy bench %.6f'%res[1])    
     print('accuracy cabinet %.6f'%res[2])
