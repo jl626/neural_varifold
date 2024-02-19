@@ -1,16 +1,20 @@
 import sys
 sys.path.append( '../..' )
 import os 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F
-from pytorch3d.io import load_obj, save_obj
+from pytorch3d.io import load_obj, save_obj, load_ply
 from pytorch3d.structures import Meshes
 from pytorch3d.utils import ico_sphere
-
-from pytorch3d.loss import chamfer_distance
-
+from pytorch3d.ops import sample_points_from_meshes
+from pytorch3d.loss import (
+    chamfer_distance, 
+    mesh_edge_loss, 
+    mesh_laplacian_smoothing, 
+    mesh_normal_consistency,
+)
 import numpy as np
 from energy import tangent_kernel
 
@@ -26,13 +30,14 @@ import input_output
 torch.manual_seed(0)
 torch.use_deterministic_algorithms(True, warn_only=True)
 
-#experiment_name = 'hippo'
+experiment_name = 'hippo'
 #experiment_name = 'cup'
 #experiment_name = 'dolphin'
 #experiment_name ='bunny'
-experiment_name = 'plane'
-
+#experiment_name = 'plane'
 # We read the target 3D model using load_obj
+
+#low = 31 mid = 26 high = 20
 
 if experiment_name=='cup':
     # two different Cups 
@@ -57,7 +62,7 @@ if experiment_name=='cup':
     faces2 = torch.LongTensor(faces2)
 # Case 2 Dolphin
 elif experiment_name == 'dolphin':
-    # sphere to dolphine 
+    # sphere to dolphin 
     src_mesh = ico_sphere(4)
     VT, FT, FunS = load_obj("../../data/matching/dolphin.obj")
     VS, FS = src_mesh.verts_packed(), src_mesh.faces_packed()
@@ -85,7 +90,7 @@ elif experiment_name == 'bunny':
     faces1 = torch.LongTensor(faces1)
     faces2 = torch.LongTensor(faces2)
 elif experiment_name == 'plane':
-    # sphere to dolphine 
+    # plane to plane 
     VS, FS, _ = load_obj("../../data/matching/plane_source.obj")
     VT, FT, _ = load_obj("../../data/matching/plane_target.obj")
     # Decimate source mesh to compute initialization for the multires algorithm 
@@ -158,7 +163,7 @@ laplacian_losses = []
 edge_losses = []
 normal_losses = []
 
-varifold = tangent_kernel(9,1.,0.05,6,mode='NTK2')
+varifold = tangent_kernel(9,1.,0.05,3,mode='NTK1')
 
 def compute_engine(V1,V2,L1,L2,K):
     cst_tmp = []
@@ -244,7 +249,7 @@ final_verts, final_faces = new_src_mesh.get_mesh_verts_faces(0)
 final_verts = (final_verts) * scale2 + center2
 
 # Store the predicted mesh using save_obj
-save_obj('../../results/%s/pointnet_ntk2_%s_red.obj'%(experiment_name,experiment_name), final_verts, final_faces)
+save_obj('../../results/ablation/pointnet_ntk1_%s_red_9layer.obj'%(experiment_name), final_verts, final_faces)
 print('Done!')
 
 final_chamfer,_ = chamfer_distance((final_verts.unsqueeze(0).double() - center2)/scale2, verts2.unsqueeze(0).double())

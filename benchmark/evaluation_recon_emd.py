@@ -122,11 +122,15 @@ if __name__=='__main__':
     'table','telephone','watercraft']
     #classes = ['telephone']
     # data path
+    modes = 'mean'
+    #modes = 'median'
+
+    resolutions = '512'
+
     data_path = '../data/processed/'
     
     # PointNet-NTK
-    exp = 'ntk'
-    recon_path = '../results/ntku_2048/'
+    #exp = 'ntk'
     #recon_path = '../results/ntkz_512/'
     # Neural-Spline
     #exp = 'spline'
@@ -134,18 +138,26 @@ if __name__=='__main__':
     # SIREN
     #exp = 'siren'
     #recon_path = '../../siren/results/'
+    exp = 'nksr'
+    recon_path = '../../NKSR/results/res_%s/'%resolutions
 
-    print('initiate evaluating method EMD for %s'%exp)
+    print('initiate evaluating method EMD %s for %s'%(modes,exp))
     print(recon_path)
     res = []
     for j,cl in enumerate(classes):
         tmp = torch.zeros(20)
         print('processing class: %s'%cl)
+        if exp == 'nksr' and cl == 'display' and resolutions=='512': 
+            res.append(0) 
+            continue
+
         for i in range(20):
             val = evaluate_results(data_path+'%s/%s%02d.obj'%(cl,cl,i),recon_path+'%s%02d_%s.ply'%(cl,i,exp))
             tmp[i] = val
-        res.append(torch.median(tmp).numpy())
-        #res.append(torch.mean(tmp).numpy())
+        if modes == 'median':
+            res.append(torch.median(tmp).numpy())
+        elif modes == 'mean':
+            res.append(torch.mean(tmp).numpy())
         #break
     print(np.sum(np.asarray(res)))
     print('accuracy airplane %.6f'%res[0])

@@ -1,7 +1,7 @@
 import sys
 sys.path.append( '../..' )
 import os 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='3'
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F
@@ -26,11 +26,11 @@ import input_output
 torch.manual_seed(0)
 torch.use_deterministic_algorithms(True, warn_only=True)
 
-#experiment_name = 'hippo'
+experiment_name = 'hippo'
 #experiment_name = 'cup'
 #experiment_name = 'dolphin'
 #experiment_name ='bunny'
-experiment_name = 'plane'
+#experiment_name = 'plane'
 
 # We read the target 3D model using load_obj
 
@@ -158,7 +158,7 @@ laplacian_losses = []
 edge_losses = []
 normal_losses = []
 
-varifold = tangent_kernel(9,1.,0.05,6,mode='NTK2')
+varifold = tangent_kernel(1,1.,0.05,6,mode='NTK2')
 
 def compute_engine(V1,V2,L1,L2,K):
     cst_tmp = []
@@ -244,7 +244,7 @@ final_verts, final_faces = new_src_mesh.get_mesh_verts_faces(0)
 final_verts = (final_verts) * scale2 + center2
 
 # Store the predicted mesh using save_obj
-save_obj('../../results/%s/pointnet_ntk2_%s_red.obj'%(experiment_name,experiment_name), final_verts, final_faces)
+save_obj('../../results/ablation/pointnet_ntk2_%s_red_1layer.obj'%(experiment_name), final_verts, final_faces)
 print('Done!')
 
 final_chamfer,_ = chamfer_distance((final_verts.unsqueeze(0).double() - center2)/scale2, verts2.unsqueeze(0).double())

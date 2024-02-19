@@ -1,18 +1,18 @@
 import sys
 sys.path.append( '../..' )
 import os 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='2'
 import torch
 import torch.nn as nn 
-import torch.nn.functional as F
+from torch.autograd import Function
+
 from pytorch3d.io import load_obj, save_obj
+from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.structures import Meshes
 from pytorch3d.utils import ico_sphere
-
 from pytorch3d.loss import chamfer_distance
 
 import numpy as np
-from energy import tangent_kernel
 
 # Set the device
 if torch.cuda.is_available():
@@ -22,9 +22,12 @@ else:
     print("WARNING: CPU only, this will be slow!")
 
 import input_output 
+from benchmark.evaluation_recon_emd import emdModule
+
 
 torch.manual_seed(0)
 torch.use_deterministic_algorithms(True, warn_only=True)
+
 
 #experiment_name = 'hippo'
 #experiment_name = 'cup'
@@ -33,6 +36,8 @@ torch.use_deterministic_algorithms(True, warn_only=True)
 experiment_name = 'plane'
 
 # We read the target 3D model using load_obj
+
+#low = 31 mid = 26 high = 20
 
 if experiment_name=='cup':
     # two different Cups 
@@ -68,7 +73,7 @@ elif experiment_name == 'hippo':
     verts1, faces1, verts2, faces2 = torch.load('../../data/matching/hippos_red.pt')
 
 elif experiment_name == 'bunny':
-    # sphere to bunny 
+    # sphere to dolphine 
     src_mesh = ico_sphere(4)
     VT, FT, FunS = load_obj("../../data/matching/bunny.obj")
     VS, FS = src_mesh.verts_packed(), src_mesh.faces_packed()
@@ -84,8 +89,10 @@ elif experiment_name == 'bunny':
     verts2 = torch.FloatTensor(verts2)
     faces1 = torch.LongTensor(faces1)
     faces2 = torch.LongTensor(faces2)
+    save_obj('../../results/bunny/sphere.obj', verts1, faces1)
+    save_obj('../../results/bunny/bunny_red.obj', verts2, faces2)
 elif experiment_name == 'plane':
-    # sphere to dolphine 
+    # sphere to dolphin
     VS, FS, _ = load_obj("../../data/matching/plane_source.obj")
     VT, FT, _ = load_obj("../../data/matching/plane_target.obj")
     # Decimate source mesh to compute initialization for the multires algorithm 
@@ -146,77 +153,44 @@ optimizer = torch.optim.Adam(models.parameters(), lr=.001)
 Niter = 200001
 
 # loss parameters
-
-# weight for varifold loss
-w_varifold = 1000.0 
+# weight for emd loss
+w_emd = 1.0
 # Plot period for the losses
 plot_period = 1000
 
-
-chamfer_losses = []
-laplacian_losses = []
-edge_losses = []
-normal_losses = []
-
-varifold = tangent_kernel(9,1.,0.05,6,mode='NTK2')
-
-def compute_engine(V1,V2,L1,L2,K):
-    cst_tmp = []
-    n_batch = 10000
-    for i in range(len(V1)//n_batch + 1):
-        tmp = V1[i*n_batch:(i+1)*n_batch,:]
-        l_tmp = L1[i*n_batch:(i+1)*n_batch,:]
-        v = torch.matmul(K(tmp,V2),L2)*l_tmp
-        cst_tmp.append(v)
-    cst = torch.sum(torch.cat(cst_tmp,0))
-    return cst
-
-def CompCLNn(F, V):
-    if F.shape[1] == 2:
-        V0, V1 = V.index_select(0, F[:, 0]), V.index_select(0, F[:, 1])
-        C, N  =  (V0 + V1)/2, V1 - V0
-    else:
-        V0, V1, V2 = V.index_select(0, F[:, 0]), V.index_select(0, F[:, 1]), V.index_select(0, F[:, 2])
-        C, N =  (V0 + V1 + V2)/3, .5 * torch.cross(V1 - V0, V2 - V0)
-
-    L = (N ** 2).sum(dim=1)[:, None].sqrt()
-    return C, L, N / L, 1#Fun_F
-
-c,l,n,_ = CompCLNn(faces_idx1,verts1)
-
+# EMD loss function
+emd_fc = emdModule()
 
 best = None
 best_loss = 0
 best_iter = 0
-
 for i in range(Niter):
+
     # Initialize optimizer
     optimizer.zero_grad()
+    # model train
     sv, sf = src_mesh.get_mesh_verts_faces(0)
     sn = src_mesh.verts_normals_packed()
     inputs = torch.cat([sv.cuda(),sn.cuda()],1)
     deform_verts = models(inputs) 
-
+    
     # Deform the mesh
     new_src_mesh = src_mesh.offset_verts(deform_verts)
     f1 = new_src_mesh.faces_packed()
     v1 = new_src_mesh.verts_packed()
-    c1,l1,n1,_ = CompCLNn(f1,v1)
-    c2,l2,n2,_ = CompCLNn(faces_idx2,verts2)
+    # We sample 5k points from the surface of each mesh 
+    sample_trg,sample_trg_nor = sample_points_from_meshes(trg_mesh, 4096, return_normals=True)
+    sample_src,sample_src_nor = sample_points_from_meshes(new_src_mesh, 4096, return_normals=True)
 
-    c1 = torch.cat([c1,n1],1)
-    c2 = torch.cat([c2,n2],1)
+    # loss EMD 
+    #print(sample_src.shape)
+    emd_val, _ = emd_fc(sample_src,sample_trg, 1e-3*5, 50)
+    loss_emd = emd_val.sum()
     
-    v11 = compute_engine(c1,c1,l1,l1,varifold)
-    v22 = compute_engine(c2,c2,l2,l2,varifold) 
-    v12 = compute_engine(c2,c1,l2,l1,varifold)
-
-    loss_varifold = v11 + v22 -2*v12
-
-    loss_chamfer, _ = chamfer_distance(c1.unsqueeze(0), c2.unsqueeze(0))
+    loss_chamfer, _ = chamfer_distance(sample_src, sample_trg)
 
     # Weighted sum of the losses
-    loss = w_varifold *loss_varifold 
+    loss = loss_emd 
 
     if best_loss == 0:
         best = deform_verts
@@ -226,10 +200,11 @@ for i in range(Niter):
         best = deform_verts
         best_loss = loss.detach()
         best_iter = i
-
+        #torch.save(models.state_dict(),'../../results/emd_%s_n.pth'%experiment_name)
+    
     # Print the losses
     if i % plot_period==0:
-        print('%d Iter: total_loss %.6f Chamfer_loss %.6f Varifold loss %.8f'% (i,loss,loss_chamfer, loss_varifold))
+        print('%d Iter: total_loss %.6f EMD_loss %.6f Chamfer_loss %.6f'% (i,loss,loss_emd, loss_chamfer))
         print('current best loss is %d: %.6f'%(best_iter,best_loss))
         
     # Optimization step
@@ -244,7 +219,7 @@ final_verts, final_faces = new_src_mesh.get_mesh_verts_faces(0)
 final_verts = (final_verts) * scale2 + center2
 
 # Store the predicted mesh using save_obj
-save_obj('../../results/%s/pointnet_ntk2_%s_red.obj'%(experiment_name,experiment_name), final_verts, final_faces)
+save_obj('../../results/%s/emd_%s_red.obj'%(experiment_name,experiment_name), final_verts, final_faces)
 print('Done!')
 
 final_chamfer,_ = chamfer_distance((final_verts.unsqueeze(0).double() - center2)/scale2, verts2.unsqueeze(0).double())

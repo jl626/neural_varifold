@@ -38,12 +38,13 @@ if __name__=='__main__':
     # data path
     data_path = '../data/processed/'
     
-    modes = 'mean'
-    #modes = 'median'
+    #modes = 'mean'
+    modes = 'median'
+
+    resolutions = '512'
     
     # PointNet-NTK
-    exp = 'ntk'
-    recon_path = '../results/ntku_layer_3_2048/'
+    #exp = 'ntk'
     #recon_path = '../results/ntkz_512/'
     # Neural-Spline
     #exp = 'spline'
@@ -51,6 +52,10 @@ if __name__=='__main__':
     # SIREN
     #exp = 'siren'
     #recon_path = '../../siren/results/'
+    # NKSR
+    exp = 'nksr'
+    recon_path = '../../NKSR/results/res_%s/'%resolutions
+    
 
     print('initiate evaluating method CD %s for %s'%(modes,exp))
     print(recon_path)
@@ -58,6 +63,12 @@ if __name__=='__main__':
     for j,cl in enumerate(classes):
         tmp = torch.zeros(20)
         print('processing class: %s'%cl)
+        
+
+        if exp == 'nksr' and cl == 'display' and resolutions=='512': 
+            res.append(0) 
+            continue
+        
         for i in range(20):
             val = evaluate_results(data_path+'%s/%s%02d.obj'%(cl,cl,i),recon_path+'%s%02d_%s.ply'%(cl,i,exp))
             tmp[i] = val
@@ -66,7 +77,7 @@ if __name__=='__main__':
         elif modes == 'mean':
             res.append(torch.mean(tmp).numpy())
     print(np.sum(np.asarray(res)))
-
+    print(len(res))
     print('accuracy airplane %.6f'%res[0])
     print('accuracy bench %.6f'%res[1])    
     print('accuracy cabinet %.6f'%res[2])

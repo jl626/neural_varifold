@@ -1,10 +1,12 @@
 import os 
+os.environ['CUDA_VISIBLE_DEVICES']='3'
 import sys 
 sys.path.append( '..' )
 
 import input_output 
 
 import torch
+import time 
 
 # EMD metric
 from evaluation_recon_emd import emdModule
@@ -13,24 +15,26 @@ from energy import tangent_kernel
 # Chamfer metric
 from pytorch3d.io import load_obj
 from pytorch3d.structures import Meshes
-from pytorch3d.utils import ico_sphere
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import chamfer_distance
 
 torch.manual_seed(0)
 torch.backends.cudnn.deterministic =True
 
-#experiments = "hippo"
-experiments = "cup"
+experiments = "hippo"
+#experiments = "cup"
 #experiments = "dolphin"
+#experiments = 'bunny'
+#experiments = 'plane'
+#experiments = 'ablation'
 
 #names = 'chamfer'
 #names = 'binet'
 #names = 'emd'
-names = 'pointnet_ntk1'
-#names = 'pointnet_ntk2'
+#names = 'pointnet_ntk1'
+names = 'pointnet_ntk2'
 
-types = '_low'
+types = '_red'
 #types = ''
 
 
@@ -42,9 +46,10 @@ elif names == "emd":
     verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
 elif names == "pointnet_ntk1":
     verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
+    #verts1,faces1,_ = load_obj('../results/%s/pointnet_ntk1_hippo_red_9layer.obj'%(experiments)) # ablation case
 elif names == "pointnet_ntk2":
     verts1,faces1,_ = load_obj('../results/%s/%s_%s%s.obj'%(experiments,names,experiments,types))
-
+    #verts1,faces1,_ = load_obj('../results/%s/pointnet_ntk2_hippo_red_1layer.obj'%(experiments)) # ablation case
 
 
 if experiments == "hippo":
@@ -57,9 +62,15 @@ elif experiments == "cup":
     [verts2,faces2]= input_output.decimate_mesh(VT,FT,param_decimation)
     verts2 = torch.FloatTensor(verts2)
     faces2 = torch.LongTensor(faces2)
+elif experiments == 'bunny':
+    verts2,faces2,_ = load_obj('../results/%s/bunny_red.obj'%experiments)
+elif experiments =='plane':
+    verts2,faces2,_ = load_obj('../results/%s/plane_target_red.obj'%experiments)
+elif experiments == "ablation":
+    verts2,faces2,_ = load_obj('../results/hippo/hippo_target.obj')
 
 res = Meshes(verts=[verts1], faces=[faces1.verts_idx])
-if experiments == 'dolphin' or experiments =='hippo':
+if experiments == 'dolphin' or experiments =='hippo' or experiments == 'bunny' or experiments=='plane' or experiments=='ablation':
     gt_mesh = Meshes(verts=[verts2], faces=[faces2.verts_idx])
 else:
     gt_mesh = Meshes(verts=[verts2], faces=[faces2])
@@ -85,7 +96,7 @@ print('Results for Experiment: %s'%experiments)
 emd_val, _ = emd(sample_res*10,sample_gt*10, 1e-3*2, 10000)
 loss_emd = emd_val.sum()
 
-if experiments =='dolphin':
+if experiments =='dolphin' or experiments=='plane':
     sample_gt  = sample_gt*10
     sample_res = sample_res*10
 
@@ -134,14 +145,24 @@ if experiments =='dolphin':
 c1,l1,n1,_ = CompCLNn(f1,v1)
 # gt
 c2,l2,n2,_ = CompCLNn(f2,v2)
-
+print(c1.shape)
+print(c2.shape)
 
 loss_cd, _ = chamfer_distance(sample_res,sample_gt)
 
 c1 = torch.cat([c1,n1],1)
 c2 = torch.cat([c2,n2],1)
+start = time.time()
 loss_ntk1  = compute_varifold_loss(c1,c2,l1,l2,ntk1)
+duration = time.time() - start
+print('Kernel construction and inference done in %s seconds.' % duration)
+
+start = time.time()
 loss_ntk2  = compute_varifold_loss(c1,c2,l1,l2,ntk2)
+duration = time.time() - start
+print('Kernel construction and inference done in %s seconds.' % duration)
+
+
 loss_binet = compute_varifold_loss(c1,c2,l1,l2,binet)
 
 
@@ -149,8 +170,8 @@ loss_binet = compute_varifold_loss(c1,c2,l1,l2,binet)
 print('Chamfer distance: %.6f'%loss_cd)
 print('Earth Movers distance: %.6f'%loss_emd)
 print('Charon Trouve Varifold Loss: %.6f'%loss_binet)
-print('NTK1 Varifold Loss: %.6f'%loss_ntk1)
-print('NTK2 Varifold Loss: %.6f'%loss_ntk2)
+print('NTK1 Varifold Loss: %.8f'%loss_ntk1)
+print('NTK2 Varifold Loss: %.8f'%loss_ntk2)
 
 
 

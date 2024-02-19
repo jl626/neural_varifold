@@ -59,10 +59,12 @@ def main(seed=0, mode='modelnet40', use_graph=False):
   print('Loading data.')
   onp.random.seed(seed)
   sample_size = 1  
-  fsl = [4,5,15,18,23,24,25,28,29,37][:5]
+  fsl = np.asarray([4,5,15,18,23,24,25,28,29,37])
+  k = onp.random.choice(10,5,replace=False)
+  fsl = fsl[k].tolist()
+  print(fsl)
   if mode == 'modelnet40':
     data = onp.load('../../varifold/modelnet/modelnet40_core3.npz')
-    #graph = onp.load('./modelnet/modelnet40_graph2.npz')
     x_train = data['x_train'][:9843]
     y_train = data['y_train'][:9843]
     y_label = np.argmax(y_train,axis=-1)
@@ -76,7 +78,6 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       sample = onp.random.choice(len(idx),sample_size,replace=False)
       new_train.append(x_train[idx[sample]])
       new_label.append(y_train[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
     
     # train
     x_train = onp.concatenate(new_train,0)[:,:1024,:]
@@ -96,50 +97,10 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       sample = onp.random.choice(len(idx),15,replace=False)
       new_test.append(x_test[idx[sample]])
       new_testlabel.append(y_test[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
     # sampled train
     x_test = onp.concatenate(new_test,0)[:,:1024,:]
     y_test = onp.concatenate(new_testlabel,0)
     #'''
-
-  elif mode == 'modelnet10': # modelnet10
-    data = onp.load('../data/modelnet10_core3.npz')
-    #graph = onp.load('./modelnet/modelnet10_graph2.npz')
-    x_train = data['x_train'][:3991]
-    y_train = data['y_train'][:3991]    
-    y_label = np.argmax(y_train,axis=-1)
-    #'''
-    new_train = []
-    new_label = []
-    new_graph = []
-    #'''
-    for i in range(10):
-      idx = onp.argwhere(y_label==i)[:,0]
-      sample = onp.random.choice(len(idx),sample_size,replace=False)
-      new_train.append(x_train[idx[sample]])
-      new_label.append(y_train[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
-    # sampled train
-    x_train = onp.concatenate(new_train,0)[:,:1024,:]
-    y_train = onp.concatenate(new_label,0)
-    #'''
- 
-    x_test = data['x_test'][:920,:1024,:]
-    y_test = data['y_test'][:920]  
-    '''
-    new_test = []
-    new_testlabel = [] 
-    y_testlabel = np.argmax(y_test,axis=-1)
-    for i in range(10):
-      idx = onp.argwhere(y_testlabel==i)[:,0]
-      sample = onp.random.choice(len(idx),15,replace=False)
-      new_test.append(x_test[idx[sample]])
-      new_testlabel.append(y_test[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
-    # sampled train
-    x_test = onp.concatenate(new_test,0)[:,:1024,:]
-    y_test = onp.concatenate(new_testlabel,0)
-    '''
  
   print(x_train.shape)
   print(y_train.shape)

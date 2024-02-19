@@ -1,18 +1,16 @@
 import sys
 sys.path.append( '../..' )
 import os 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='2'
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F
-from pytorch3d.io import load_obj, save_obj
+from pytorch3d.io import load_obj, save_obj, load_ply
 from pytorch3d.structures import Meshes
 from pytorch3d.utils import ico_sphere
-
 from pytorch3d.loss import chamfer_distance
 
 import numpy as np
-from energy import tangent_kernel
 
 # Set the device
 if torch.cuda.is_available():
@@ -30,9 +28,11 @@ torch.use_deterministic_algorithms(True, warn_only=True)
 #experiment_name = 'cup'
 #experiment_name = 'dolphin'
 #experiment_name ='bunny'
-experiment_name = 'plane'
+experiment_name ='plane'
 
 # We read the target 3D model using load_obj
+
+#low = 31 mid = 26 high = 20
 
 if experiment_name=='cup':
     # two different Cups 
@@ -66,9 +66,10 @@ elif experiment_name == 'dolphin':
 # Case 3 Hippocampus 
 elif experiment_name == 'hippo':
     verts1, faces1, verts2, faces2 = torch.load('../../data/matching/hippos_red.pt')
-
+    save_obj('../../results/hippo/hippo_red_source.obj', verts1, faces1)
+    save_obj('../../results/hippo/hippo_red_target.obj', verts2, faces2)
 elif experiment_name == 'bunny':
-    # sphere to bunny 
+    # sphere to dolphine 
     src_mesh = ico_sphere(4)
     VT, FT, FunS = load_obj("../../data/matching/bunny.obj")
     VS, FS = src_mesh.verts_packed(), src_mesh.faces_packed()
@@ -84,6 +85,8 @@ elif experiment_name == 'bunny':
     verts2 = torch.FloatTensor(verts2)
     faces1 = torch.LongTensor(faces1)
     faces2 = torch.LongTensor(faces2)
+    save_obj('../../results/bunny/sphere.obj', verts1, faces1)
+    save_obj('../../results/bunny/bunny_red.obj', verts2, faces2)
 elif experiment_name == 'plane':
     # sphere to dolphine 
     VS, FS, _ = load_obj("../../data/matching/plane_source.obj")
@@ -99,7 +102,11 @@ elif experiment_name == 'plane':
     verts2 = torch.FloatTensor(verts2)
     faces1 = torch.LongTensor(faces1)
     faces2 = torch.LongTensor(faces2)
+    save_obj('../../results/plane/plane_source_red.obj', verts1, faces1)
+    save_obj('../../results/plane/plane_target_red.obj', verts2, faces2)
 
+
+#'''
 # verts is a FloatTensor of shape (V, 3) where V is the number of vertices in the mesh
 # faces is an object which contains the following LongTensors: verts_idx, normals_idx and textures_idx
 # For this tutorial, normals and textures are ignored.
@@ -115,7 +122,7 @@ verts2 = verts2.to(device)
 # We scale normalize and center the target mesh to fit in a sphere of radius 1 centered at (0,0,0). 
 # (scale, center) will be used to bring the predicted mesh to its original center and scale
 # Note that normalizing the target mesh, speeds up the optimization but is not necessary!
-#'''
+
 center1 = verts1.mean(0)
 center2 = verts2.mean(0)
 verts1 = verts1 - center1
@@ -124,7 +131,7 @@ scale1 = max(verts1.abs().max(0)[0])
 scale2 = max(verts2.abs().max(0)[0])
 verts1 = verts1 / scale1
 verts2 = verts2 / scale2
-#'''
+
 # We construct a Meshes structure for the target mesh
 src_mesh = Meshes(verts=[verts1], faces=[faces_idx1])
 trg_mesh = Meshes(verts=[verts2], faces=[faces_idx2])
@@ -141,35 +148,16 @@ class testnet(nn.Module):
 # optimizer setting
 models = testnet().cuda()
 optimizer = torch.optim.Adam(models.parameters(), lr=.001)
-
 # Number of optimization steps
 Niter = 200001
 
 # loss parameters
-
-# weight for varifold loss
-w_varifold = 1000.0 
+# Weight for the chamfer loss
+w_chamfer = 1.0 
 # Plot period for the losses
 plot_period = 1000
 
-
-chamfer_losses = []
-laplacian_losses = []
-edge_losses = []
-normal_losses = []
-
-varifold = tangent_kernel(9,1.,0.05,6,mode='NTK2')
-
-def compute_engine(V1,V2,L1,L2,K):
-    cst_tmp = []
-    n_batch = 10000
-    for i in range(len(V1)//n_batch + 1):
-        tmp = V1[i*n_batch:(i+1)*n_batch,:]
-        l_tmp = L1[i*n_batch:(i+1)*n_batch,:]
-        v = torch.matmul(K(tmp,V2),L2)*l_tmp
-        cst_tmp.append(v)
-    cst = torch.sum(torch.cat(cst_tmp,0))
-    return cst
+chamfer_losses=[]
 
 def CompCLNn(F, V):
     if F.shape[1] == 2:
@@ -181,9 +169,6 @@ def CompCLNn(F, V):
 
     L = (N ** 2).sum(dim=1)[:, None].sqrt()
     return C, L, N / L, 1#Fun_F
-
-c,l,n,_ = CompCLNn(faces_idx1,verts1)
-
 
 best = None
 best_loss = 0
@@ -207,16 +192,10 @@ for i in range(Niter):
     c1 = torch.cat([c1,n1],1)
     c2 = torch.cat([c2,n2],1)
     
-    v11 = compute_engine(c1,c1,l1,l1,varifold)
-    v22 = compute_engine(c2,c2,l2,l2,varifold) 
-    v12 = compute_engine(c2,c1,l2,l1,varifold)
-
-    loss_varifold = v11 + v22 -2*v12
-
     loss_chamfer, _ = chamfer_distance(c1.unsqueeze(0), c2.unsqueeze(0))
-
+    
     # Weighted sum of the losses
-    loss = w_varifold *loss_varifold 
+    loss = w_chamfer*loss_chamfer
 
     if best_loss == 0:
         best = deform_verts
@@ -229,7 +208,7 @@ for i in range(Niter):
 
     # Print the losses
     if i % plot_period==0:
-        print('%d Iter: total_loss %.6f Chamfer_loss %.6f Varifold loss %.8f'% (i,loss,loss_chamfer, loss_varifold))
+        print('%d Iter: total_loss %.6f Chamfer_loss %.6f'% (i,loss,loss_chamfer))
         print('current best loss is %d: %.6f'%(best_iter,best_loss))
         
     # Optimization step
@@ -244,8 +223,9 @@ final_verts, final_faces = new_src_mesh.get_mesh_verts_faces(0)
 final_verts = (final_verts) * scale2 + center2
 
 # Store the predicted mesh using save_obj
-save_obj('../../results/%s/pointnet_ntk2_%s_red.obj'%(experiment_name,experiment_name), final_verts, final_faces)
+save_obj('../../results/%s/chamfer_%s.obj'%(experiment_name,experiment_name), final_verts, final_faces)
 print('Done!')
 
 final_chamfer,_ = chamfer_distance((final_verts.unsqueeze(0).double() - center2)/scale2, verts2.unsqueeze(0).double())
 print('final Chamfer distance: %.6f'%(final_chamfer.detach().cpu().numpy()))
+#'''

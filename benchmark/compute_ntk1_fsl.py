@@ -1,7 +1,7 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES']='1'
 #from infinite_fcn4 import main as compute_engine
-from infinite_analytic import main as compute_engine
+from infinite_fsl1 import main as compute_engine
 
 import numpy as np 
 import time 

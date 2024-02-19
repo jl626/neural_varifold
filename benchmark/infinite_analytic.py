@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+#os.environ['CUDA_VISIBLE_DEVICES']='0'
 import time
 import jax 
 from absl import app
@@ -12,10 +12,10 @@ from examples import util
 from neural_tangents._src.utils.kernel import Kernel
 import numpy as onp
 from jax import random
-#from generate_graph import generate_graph
+from generate_graph import generate_graph
 #from utils import *
 # double precision (computationally much slower)
-from jax.config import config ; config.update('jax_enable_x64', True)
+#from jax.config import config ; config.update('jax_enable_x64', True)
 # device check
 from jax.lib import xla_bridge
 print(xla_bridge.get_backend().platform)
@@ -54,59 +54,19 @@ def Prod():
   return init_fn, apply_fn, kernel_fn
 
 
-# positional encoding // fourier encoding (NIPS 2020)
-def encoder(embed_params, inputs):
-  input_encoder = lambda x, a, b: (np.concatenate([a * np.sin((2.*np.pi*x) @ b.T), 
-                                                     a * np.cos((2.*np.pi*x) @ b.T)], axis=-1) / np.linalg.norm(a)) if a is not None else x#(x * 2. - 1.)
-
-  embedding_method, embedding_size, embedding_scale = embed_params
-
-  if embedding_method == 'gauss':
-    print('gauss bvals')
-    bvals = onp.random.normal(size=[embedding_size,6]) * embedding_scale
-
-  if embedding_method == 'posenc':
-    print('posenc bvals')
-    v = 6
-    bvals = 2.**np.linspace(0,embedding_scale,embedding_size//v) - 1
-    bvals = np.reshape(np.eye(v)*bvals[:,None,None], [len(bvals)*v, v])
-
-  if embedding_method == 'basic':
-    print('basic bvals')
-    bvals = onp.eye(3)
-
-
-  if embedding_method == 'none':
-    print('NO abvals')
-    avals = None
-    bvals = None
-  else:
-    avals = np.ones_like(bvals[:,0])
-  ab = (avals, bvals)
-  x = input_encoder(inputs, *ab)
-  return x 
-
-embed_tasks = [
-               ['gauss', 256, 0.001],
-               ['posenc',256, 1.0],
-               ['basic', None, None],
-               ['none', None, None],
-]
-
-
 def main(seed=0, mode='modelnet40', use_graph=False):
   # Build data pipelines.
   print('Loading data.')
   onp.random.seed(seed)
   sample_size = 5  
+  
   if mode == 'modelnet40':
-    data = onp.load('./modelnet/modelnet40_core3.npz')
+    data = onp.load('../../varifold/modelnet/modelnet40_core3.npz')
     #graph = onp.load('./modelnet/modelnet40_graph2.npz')
     x_train = data['x_train'][:9843]
     y_train = data['y_train'][:9843]
     y_label = np.argmax(y_train,axis=-1)
 
-    embed_params = embed_tasks[1]
     new_train = []
     new_label = []
     new_graph = []
@@ -115,26 +75,22 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       sample = onp.random.choice(len(idx),sample_size,replace=False)
       new_train.append(x_train[idx[sample]])
       new_label.append(y_train[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
     
     # train
     x_train = onp.concatenate(new_train,0)[:,:1024,:].reshape(sample_size*40,1024,2,3).transpose((0,2,1,3)) # varifold setting
     y_train = onp.concatenate(new_label,0)
-    #x_train = encoder(embed_params,x_train)
     
     # test
     x_test = data['x_test'][:2480].reshape(2480,1024,2,3).transpose((0,2,1,3))
     y_test = data['y_test'][:2480] 
-    #x_test  = encoder(embed_params,x_test)
+
   elif mode == 'modelnet10': # modelnet10
-    data = onp.load('./modelnet/modelnet10_core3.npz')
+    data = onp.load('../data/modelnet10_core3.npz')
     n_pts = 1024
-    #graph = onp.load('./modelnet/modelnet10_graph2.npz')
     x_train = data['x_train'][:3991]
     y_train = data['y_train'][:3991]    
     y_label = np.argmax(y_train,axis=-1)
     #'''
-    embed_params = embed_tasks[1]
     new_train = []
     new_label = []
     new_graph = []
@@ -146,36 +102,35 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       new_label.append(y_train[idx[sample]])
       #new_graph.append( graph1[idx[sample]])
     # sampled train
-    x_train = onp.concatenate(new_train,0)[:,:n_pts,:].reshape(sample_size*10,n_pts,2,3).transpose((0,2,1,3))
-    #x_train = onp.concatenate([x_train, onp.ones((100,1024,1),dtype=np.float64)],2)#.reshape(100,1024,2,3).transpose((0,2,1,3))
+    x_train = onp.concatenate(new_train,0)
+    # graph 
+    if use_graph:
+      graph1 = generate_graph(x_train, 10)
+    
+    x_train =x_train[:,:n_pts,:].reshape(sample_size*10,n_pts,2,3).transpose((0,2,1,3))
     y_train = onp.concatenate(new_label,0)
-    #'''
-    #x_train = encoder(embed_params,x_train)
 
     #x_train = x_train.reshape(4000,1024,2,3).transpose((0,2,1,3))
     #y_train = y_train    # test
     
-    x_test = data['x_test'][:920,:n_pts,:].reshape(920,n_pts,2,3).transpose((0,2,1,3))
-    #x_test = onp.concatenate([x_test,onp.ones((920,1024,1),dtype=np.float64)],2)#.reshape(920,1024,2,3).transpose((0,2,1,3))
+    x_test = data['x_test']
+    
+    if use_graph:
+      graph2 = generate_graph(x_test,  10)
+
+    x_test = x_test[:920,:n_pts,:].reshape(920,n_pts,2,3).transpose((0,2,1,3))
     y_test = data['y_test'][:920]  
-    #x_test  = encoder(embed_params,x_test)
  
   print(x_train.shape)
   print(y_train.shape)
   print(x_test.shape)
   print(y_test.shape)
 
-  # graph 
-  if use_graph:
-    graph1 = generate_graph(x_train, 10)
-    graph2 = generate_graph(x_test,  10)
-
-
   # Build the infinite network.
   layers = []
   for k in range(5):
-    #if use_graph:
-    #  layers += [stax.Aggregate(aggregate_axis=1, batch_axis=0, channel_axis=2)] 
+    if use_graph:
+      layers += [stax.Aggregate(aggregate_axis=2, batch_axis=0, channel_axis=3)] 
     layers += [stax.Dense(1, 1., 0.05),stax.LayerNorm(), stax.Relu()]
     #layers += [stax.Dense(1, 1., 0.05), stax.Relu()]
     #layers += [stax.Conv(1, (1, ), (1, ), 'SAME'),stax.LayerNorm(), stax.Relu()]
@@ -183,7 +138,7 @@ def main(seed=0, mode='modelnet40', use_graph=False):
   init_fn, apply_fn, kernel_fn = stax.serial(*(layers + [Prod(),stax.GlobalAvgPool()]))
 
   # Optionally, compute the kernel in batches, in parallel.
-  kernel_fn = nt.batch(kernel_fn,device_count=-1,batch_size=1)
+  kernel_fn = nt.batch(kernel_fn,device_count=-1,batch_size=5)
   start = time.time()
   # Bayesian and infinite-time gradient descent inference with infinite network.
   if use_graph:

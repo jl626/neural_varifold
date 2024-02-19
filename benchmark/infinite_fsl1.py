@@ -20,6 +20,8 @@ from generate_graph import generate_graph
 from jax.lib import xla_bridge
 print(xla_bridge.get_backend().platform)
 
+import torch
+
 #FLAGS = flags.FLAGS
 
 # analoguous to traditional Gaussian - Cauchy-binet varifold kernel [K_gauss * K_caucy_binet]
@@ -58,15 +60,24 @@ def main(seed=0, mode='modelnet40', use_graph=False):
   # Build data pipelines.
   print('Loading data.')
   onp.random.seed(seed)
-  sample_size = 1  
-  fsl = [4,5,15,18,23,24,25,28,29,37][:5]
+  sample_size = 5  
+  n_pts = 512
+  cls_size = 5
+  fsl = np.asarray([4,5,15,18,23,24,25,28,29,37])
+  k = onp.random.choice(10,5,replace=False)
+  fsl = fsl[k].tolist()
+  print(fsl)
+  d = {}
+  for j,x in enumerate(fsl):
+    d[x] = j 
+
   if mode == 'modelnet40':
     data = onp.load('../../varifold/modelnet/modelnet40_core3.npz')
     #graph = onp.load('./modelnet/modelnet40_graph2.npz')
     x_train = data['x_train'][:9843]
     y_train = data['y_train'][:9843]
     y_label = np.argmax(y_train,axis=-1)
-    
+
     new_train = []
     new_label = []
     new_graph = []
@@ -75,18 +86,16 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       idx = onp.argwhere(y_label==i)[:,0]
       sample = onp.random.choice(len(idx),sample_size,replace=False)
       new_train.append(x_train[idx[sample]])
-      new_label.append(y_train[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
-    
+      lb = torch.nn.functional.one_hot(torch.LongTensor([d[i]]*sample_size),cls_size).numpy()
+      new_label.append(lb)
     # train
-    x_train = onp.concatenate(new_train,0)[:,:1024,:]
+    x_train = onp.concatenate(new_train,0)[:,:n_pts,:].reshape(sample_size*cls_size,n_pts,2,3).transpose((0,2,1,3)) # varifold setting
     y_train = onp.concatenate(new_label,0)
     
     # test
     x_test = data['x_test'][:2480]
     y_test = data['y_test'][:2480] 
 
-    #'''
     new_test = []
     new_testlabel = [] 
     y_testlabel = np.argmax(y_test,axis=-1)
@@ -95,15 +104,18 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       idx = onp.argwhere(y_testlabel==i)[:,0]
       sample = onp.random.choice(len(idx),15,replace=False)
       new_test.append(x_test[idx[sample]])
-      new_testlabel.append(y_test[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
-    # sampled train
-    x_test = onp.concatenate(new_test,0)[:,:1024,:]
+      #new_test.append(x_test[idx])
+      lb = torch.nn.functional.one_hot(torch.LongTensor([d[i]]*15),cls_size).numpy()
+      new_testlabel.append(lb)
+    x_test = onp.concatenate(new_test,0)[:,:n_pts,:].reshape(-1,n_pts,2,3).transpose((0,2,1,3))
     y_test = onp.concatenate(new_testlabel,0)
-    #'''
+    #query = onp.random.choice(len(y_test),15,replace=False)
+    #x_test = x_test[query]
+    #y_test = y_test[query]
 
   elif mode == 'modelnet10': # modelnet10
     data = onp.load('../data/modelnet10_core3.npz')
+    n_pts = 1024
     #graph = onp.load('./modelnet/modelnet10_graph2.npz')
     x_train = data['x_train'][:3991]
     y_train = data['y_train'][:3991]    
@@ -120,48 +132,40 @@ def main(seed=0, mode='modelnet40', use_graph=False):
       new_label.append(y_train[idx[sample]])
       #new_graph.append( graph1[idx[sample]])
     # sampled train
-    x_train = onp.concatenate(new_train,0)[:,:1024,:]
+    x_train = onp.concatenate(new_train,0)
+    # graph 
+    if use_graph:
+      graph1 = generate_graph(x_train, 10)
+    
+    x_train =x_train[:,:n_pts,:].reshape(sample_size*10,n_pts,2,3).transpose((0,2,1,3))
     y_train = onp.concatenate(new_label,0)
-    #'''
- 
-    x_test = data['x_test'][:920,:1024,:]
+
+    #x_train = x_train.reshape(4000,1024,2,3).transpose((0,2,1,3))
+    #y_train = y_train    # test
+    
+    x_test = data['x_test']
+    
+    if use_graph:
+      graph2 = generate_graph(x_test,  10)
+
+    x_test = x_test[:920,:n_pts,:].reshape(920,n_pts,2,3).transpose((0,2,1,3))
     y_test = data['y_test'][:920]  
-    '''
-    new_test = []
-    new_testlabel = [] 
-    y_testlabel = np.argmax(y_test,axis=-1)
-    for i in range(10):
-      idx = onp.argwhere(y_testlabel==i)[:,0]
-      sample = onp.random.choice(len(idx),15,replace=False)
-      new_test.append(x_test[idx[sample]])
-      new_testlabel.append(y_test[idx[sample]])
-      #new_graph.append( graph1[idx[sample]])
-    # sampled train
-    x_test = onp.concatenate(new_test,0)[:,:1024,:]
-    y_test = onp.concatenate(new_testlabel,0)
-    '''
  
   print(x_train.shape)
   print(y_train.shape)
   print(x_test.shape)
   print(y_test.shape)
 
-  # graph 
-  if use_graph:
-    graph1 = generate_graph(x_train, 10)
-    graph2 = generate_graph(x_test,  10)
-
-
   # Build the infinite network.
   layers = []
-  for k in range(9):
+  for k in range(5):
     if use_graph:
-      layers += [stax.Aggregate(aggregate_axis=1, batch_axis=0, channel_axis=2)] 
+      layers += [stax.Aggregate(aggregate_axis=2, batch_axis=0, channel_axis=3)] 
     layers += [stax.Dense(1, 1., 0.05),stax.LayerNorm(), stax.Relu()]
     #layers += [stax.Dense(1, 1., 0.05), stax.Relu()]
     #layers += [stax.Conv(1, (1, ), (1, ), 'SAME'),stax.LayerNorm(), stax.Relu()]
   print(len(layers)//3, '-layer network')
-  init_fn, apply_fn, kernel_fn = stax.serial(*(layers + [stax.GlobalAvgPool()]))
+  init_fn, apply_fn, kernel_fn = stax.serial(*(layers + [Prod(),stax.GlobalAvgPool()]))
 
   # Optionally, compute the kernel in batches, in parallel.
   kernel_fn = nt.batch(kernel_fn,device_count=-1,batch_size=5)
@@ -171,7 +175,7 @@ def main(seed=0, mode='modelnet40', use_graph=False):
     predict_fn = nt.predict.gradient_descent_mse_ensemble(kernel_fn, x_train,y_train, diag_reg=1e-2,pattern=(graph1,graph1))
     fx_test_nngp, fx_test_ntk = predict_fn(x_test=x_test, pattern=(graph2,graph2))
   else:
-    predict_fn = nt.predict.gradient_descent_mse_ensemble(kernel_fn, x_train,y_train, diag_reg=1e-2)
+    predict_fn = nt.predict.gradient_descent_mse_ensemble(kernel_fn, x_train,y_train, diag_reg=1e-8)
     fx_test_nngp, fx_test_ntk = predict_fn(x_test=x_test)
   fx_test_nngp.block_until_ready()
   fx_test_ntk.block_until_ready()
