@@ -4,8 +4,10 @@ neural varifold implementation
 ## Requirment
 We tested our code on Ubuntu 18.04 environment. 
 
-* CUDA 11.1 and cudnn 8.2
+* CUDA 12.4
 * Anaconda
+* Jax
+* neural_tangents 
 
 ## How to install
 
