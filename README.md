@@ -27,11 +27,11 @@ data is available at [google drive](https://drive.google.com/file/d/1ANYa3JKhr69
 
 ## Citing Neural Varifold
 
+```
 @article{lee2024neural,
   title={Neural varifolds: an aggregate representation for quantifying the geometry of point clouds},
   author={Lee, Juheon and Cai, Xiaohao and Sch{\"o}nlieb, Carola-Bibian and Masnou, Simon},
   journal={arXiv preprint arXiv:2407.04844},
   year={2024}
 }
-
-
+```
