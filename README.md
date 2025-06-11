@@ -2,12 +2,14 @@
 neural varifold implementation
 
 ## Requirment
-We tested our code on Ubuntu 18.04 environment. 
+We tested our code on Ubuntu 22.04 environment. 
 
-* CUDA 12.4
-* Anaconda
-* Jax
-* neural_tangents 
+* CUDA 11.8
+* Tensorflow 2.15
+* Jax 0.4.21
+* torch 2.7.1 + cuda118
+* torch_geometric 2.6.1
+* neural_tangents 0.6.4
 
 ## How to install
 
