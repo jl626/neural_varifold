@@ -21,4 +21,6 @@ In order to use the library, one can activate conda virtual environment as follo
 conda activate neural-varifold
 ```
 
-## TO DO
+## Data
+
+data is available at [google drive](https://docs.google.com/document/d/1XbI9h8Cmxq5_lg1L56hrMP5YFOAhcLu2C3UrSilmTC8/edit?usp=drive_link)
