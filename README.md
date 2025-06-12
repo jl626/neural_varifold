@@ -1,5 +1,8 @@
 # neural_varifold
-neural varifold implementation
+## neural varifold implementation
+![Diagram of system architecture](examples.png)
+
+
 
 ## Requirment
 We tested our code on Ubuntu 22.04 environment. 
