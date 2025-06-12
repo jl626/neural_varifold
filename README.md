@@ -1,8 +1,8 @@
-# neural_varifold
-## neural varifold implementation
+# Neural varifolds: an aggregate representation for quantifyingthe geometry of point clouds
 ![Diagram of system architecture](examples.png)
 
 
+## neural varifold implementation
 
 ## Requirment
 We tested our code on Ubuntu 22.04 environment. 
@@ -14,7 +14,7 @@ We tested our code on Ubuntu 22.04 environment.
 * torch_geometric 2.6.1
 * neural_tangents 0.6.4
 
-## How to install
+### How to install
 
 please type on commandline prompt 
 
@@ -28,11 +28,16 @@ In order to use the library, one can activate conda virtual environment as follo
 conda activate neural-varifold
 ```
 
-## Data
+### Data
 
 data is available at [google drive](https://drive.google.com/file/d/1ANYa3JKhr696rxMt1kaxD265-xq5N7qO/view?usp=drive_link)
 
-## Citing Neural Varifold
+### How to replicate our experiments 
+
+Download the data from the google drive, then run the notebook in `
+
+
+### Citing Neural Varifold
 
 ```
 @article{lee2024neural,
