@@ -4,7 +4,7 @@
 
 ## neural varifold implementation
 
-## Requirment
+### Requirment
 We tested our code on Ubuntu 22.04 environment. 
 
 * CUDA 11.8
@@ -34,7 +34,7 @@ data is available at [google drive](https://drive.google.com/file/d/1ANYa3JKhr69
 
 ### How to replicate our experiments 
 
-Download the data from the google drive, then run the notebook in `
+Download the data from the google drive, then run the notebook in `notebooks/reconstruction`, `notebook/classification` or `notebook/surface_matching`. 
 
 
 ### Citing Neural Varifold
