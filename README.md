@@ -30,7 +30,7 @@ conda activate neural-varifold
 
 ### Data
 
-data is available at [google drive](https://drive.google.com/file/d/1ANYa3JKhr696rxMt1kaxD265-xq5N7qO/view?usp=drive_link)
+data is available at [google drive](https://drive.google.com/file/d/1HWndVEk7kJfD81KtT7UEsLq060XiKxFD/view?usp=drive_link)
 
 ### How to replicate our experiments 
 
